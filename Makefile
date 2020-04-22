@@ -94,6 +94,7 @@ APPENDICES_SOURCES = $(APPENDICES:%=$(NOTEBOOKS)/%)
 
 # Where to place the pdf, html, slides
 PDF_TARGET      = pdf/
+NBPDF_TARGET    = nbpdf/
 HTML_TARGET     = html/
 SLIDES_TARGET   = slides/
 CODE_TARGET     = code/
@@ -138,6 +139,7 @@ DOCS = \
 # Various derived files
 TEXS      = $(SOURCE_FILES:%.ipynb=$(PDF_TARGET)%.tex)
 PDFS      = $(SOURCE_FILES:%.ipynb=$(PDF_TARGET)%.pdf)
+NBPDFS    = $(SOURCE_FILES:%.ipynb=$(NBPDF_TARGET)%.pdf)
 HTMLS     = $(SOURCE_FILES:%.ipynb=$(HTML_TARGET)%.html)
 SLIDES    = $(SOURCE_FILES:%.ipynb=$(SLIDES_TARGET)%.slides.html)
 PYS       = $(SOURCE_FILES:%.ipynb=$(CODE_TARGET)%.py) \
@@ -156,6 +158,7 @@ DEPENDS   = $(SOURCE_FILES:%.ipynb=$(DEPEND_TARGET)%.makefile)
 CHAPTER_PYS = $(CHAPTERS:%.ipynb=$(CODE_TARGET)%.py)
 
 PDF_FILES     = $(SOURCE_FILES:%.ipynb=$(PDF_TARGET)%_files)
+NBPDF_FILES   = $(SOURCE_FILES:%.ipynb=$(NBPDF_TARGET)%_files)
 HTML_FILES    = $(SOURCE_FILES:%.ipynb=$(HTML_TARGET)%_files)
 SLIDES_FILES  = $(SOURCE_FILES:%.ipynb=$(SLIDES_TARGET)%_files)
 
@@ -346,6 +349,7 @@ and more:	word markdown epub
 .PHONY: full-notebooks full fulls rendered-notebooks rendered renders book-pdf book-html
 html:	ipypublish-chapters $(HTMLS)
 pdf:	ipypublish-chapters $(PDFS)
+nbpdf:	ipypublish-chapters $(NBPDFS)
 python code:	$(PYS)
 slides:	$(SLIDES) $(REVEAL_JS)
 word doc docx: $(WORDS)
@@ -487,6 +491,8 @@ POST_HTML_OPTIONS = $(BETA_FLAG) \
 	
 HTML_DEPS = $(BIB) $(PUBLISH_PLUGINS) utils/post_html.py $(CHAPTERS_MAKEFILE)
 
+
+
 # index.html comes with relative links (html/) such that the beta version gets the beta menu
 $(DOCS_TARGET)index.html: \
 	$(FULL_NOTEBOOKS)/index.ipynb $(HTML_DEPS)
@@ -543,6 +549,7 @@ $(SLIDES_TARGET)%.slides.html: $(FULL_NOTEBOOKS)/%.ipynb $(BIB)
 	@-$(RM) -fr $(TMPDIR)
 	@$(OPEN) $@
 
+
 # Rules for beta targets
 .FORCE:
 ifndef BETA
@@ -597,6 +604,16 @@ $(WORD_TARGET)%.docx: $(HTML_TARGET)%.html $(WORD_TARGET)pandoc.css
 # Epub comes from the markdown file
 $(EPUB_TARGET)%.epub: $(MARKDOWN_TARGET)%.md
 	cd $(MARKDOWN_TARGET); $(PANDOC) -o ../$@ ../$<
+	
+
+# NBPDF files - generated from HMTL, with embedded notebooks
+# See instructions at https://github.com/betatim/notebook-as-pdf
+HTMLTONBPDF = utils/htmltonbpdf.py
+
+$(NBPDF_TARGET)%.pdf:  $(HTML_TARGET)/%.html $(RENDERED_NOTEBOOKS)/%.ipynb $(HTMLTONBPDF) $(HTML_TARGET)custom.css
+	@test -d $(NBPDF_TARGET) || $(MKDIR) $(NBPDF_TARGET)
+	$(PYTHON) $(HTMLTONBPDF) $${PWD}/$(HTML_TARGET)$(basename $(notdir $<)).html $(RENDERED_NOTEBOOKS)/$(basename $(notdir $<)).ipynb $@
+
 
 # Conversion rules - entire book
 # We create a fuzzingbook/ folder with the chapters ordered by number, 
@@ -854,7 +871,7 @@ DIST_CODE_FILES = \
 	$(DOCS_TARGET)code/__init__.py
 	
 check-fuzzingbook-install:
-	@-$(PYTHON) -c 'import fuzzingbook' 2> /dev/null; \
+	@$(PYTHON) -c 'import fuzzingbook' 2> /dev/null; \
 	if [ $$? = 0 ]; then \
 		echo "Error: Installed fuzzingbook package conflicts with package creation" >&2; \
 		echo "Please uninstall it; e.g. with 'pip uninstall fuzzingbook'." >&2; \
@@ -863,8 +880,17 @@ check-fuzzingbook-install:
 		exit 0; \
 	fi
 
+clean-fuzzingbook-dist:
+	$(RM) -r code/__pycache__
+	$(RM) -r code/fuzzingbook_utils/__pycache__
+	$(RM) -r $(DOCS_TARGET)notebooks/fuzzingbook/__pycache__
+	$(RM) -r $(DOCS_TARGET)notebooks/fuzzingbook_utils/__pycache__
+	$(RM) -r $(DOCS_TARGET)code/fuzzingbook_utils/__pycache__
+	$(RM) -r $(DOCS_TARGET)notebooks/.ipynb_checkpoints
+
 $(DOCS_TARGET)dist/fuzzingbook-code.zip: \
-	$(PYS) $(DIST_CODE_FILES) $(CHAPTERS_MAKEFILE) check-fuzzingbook-install
+	$(PYS) $(DIST_CODE_FILES) $(CHAPTERS_MAKEFILE) \
+	check-fuzzingbook-install clean-fuzzingbook-dist
 	@-mkdir $(DOCS_TARGET)dist
 	$(RM) -r $(DOCS_TARGET)dist/*
 	$(RM) -r $(DOCS_TARGET)fuzzingbook
@@ -882,8 +908,8 @@ $(DOCS_TARGET)dist/fuzzingbook-code.zip: \
 	$(RM) -r $(DOCS_TARGET)code/dist $(DOCS_TARGET)code/*.egg-info
 	@echo "Created code distribution files in $(DOCS_TARGET)dist"
 	
-$(DOCS_TARGET)dist/fuzzingbook-notebooks.zip: $(FULLS) $(CHAPTERS_MAKEFILE)
-	$(RM) -r $(DOCS_TARGET)notebooks/fuzzingbook_utils/__pycache__
+$(DOCS_TARGET)dist/fuzzingbook-notebooks.zip: $(FULLS) $(CHAPTERS_MAKEFILE) \
+	clean-fuzzingbook-dist
 	cd $(DOCS_TARGET); ln -s notebooks fuzzingbook-notebooks
 	cd $(DOCS_TARGET); \
 		$(ZIP) $(ZIP_OPTIONS) fuzzingbook-notebooks.zip fuzzingbook-notebooks
