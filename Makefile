@@ -75,7 +75,8 @@ NOTEBOOKS = notebooks
 # Derived versions including HTML, SVG, and text output cells (for Web)
 FULL_NOTEBOOKS = full_notebooks
 
-# Derived versions including PNG and text output cells (for LaTeX and PDF)
+# Derived versions including PNG and text output cells,
+# but without excursions (for LaTeX and PDF)
 RENDERED_NOTEBOOKS = rendered
 
 
@@ -425,6 +426,7 @@ help:
 ADD_METADATA = utils/add_metadata.py
 NBAUTOSLIDE = utils/nbautoslide.py
 NBSYNOPSIS = utils/nbsynopsis.py
+NBSHORTEN = utils/nbshorten.py
 
 $(FULL_NOTEBOOKS)/%.ipynb: $(NOTEBOOKS)/%.ipynb $(DEPEND_TARGET)%.makefile $(ADD_METADATA) $(NBAUTOSLIDE) $(NBSYNOPSIS)
 	$(EXECUTE_NOTEBOOK) $<
@@ -432,11 +434,12 @@ $(FULL_NOTEBOOKS)/%.ipynb: $(NOTEBOOKS)/%.ipynb $(DEPEND_TARGET)%.makefile $(ADD
 	$(PYTHON) $(NBAUTOSLIDE) --in-place $@
 	$(PYTHON) $(NBSYNOPSIS) --update $@
 	
-$(RENDERED_NOTEBOOKS)/%.ipynb: $(NOTEBOOKS)/%.ipynb $(DEPEND_TARGET)%.makefile $(ADD_METADATA) $(NBAUTOSLIDE) $(NBSYNOPSIS) $(NOTEBOOKS)/fuzzingbook_utils/__init__.py
+$(RENDERED_NOTEBOOKS)/%.ipynb: $(NOTEBOOKS)/%.ipynb $(DEPEND_TARGET)%.makefile $(ADD_METADATA) $(NBAUTOSLIDE) $(NBSYNOPSIS) $(NBSHORTEN) $(NOTEBOOKS)/fuzzingbook_utils/__init__.py
 	$(RENDER_NOTEBOOK) $<
 	$(PYTHON) $(ADD_METADATA) $@ > $@~ && mv $@~ $@
 	$(PYTHON) $(NBAUTOSLIDE) --in-place $@
 	RENDER_HTML=1 $(PYTHON) $(NBSYNOPSIS) --update $@
+	$(PYTHON) $(NBSHORTEN) --link-to "$(SITE)/html/" --in-place $@
 
 $(FULL_NOTEBOOKS)/fuzzingbook_utils:
 	$(MKDIR) $(FULL_NOTEBOOKS)/fuzzingbook_utils
@@ -469,16 +472,21 @@ $(PDF_TARGET)%.pdf:	$(PDF_TARGET)%.tex $(BIB)
 	@-test -L $(PDF_TARGET)PICS || ln -s ../$(NOTEBOOKS)/PICS $(PDF_TARGET)
 	cd $(PDF_TARGET) && $(LATEXMK) $(LATEXMK_OPTS) $*
 	@cd $(PDF_TARGET) && $(RM) $*.aux $*.bbl $*.blg $*.log $*.out $*.toc $*.frm $*.lof $*.lot $*.fls $*.fdb_latexmk $*.xdv
-	@cd $(PDF_TARGET) && $(RM) -r $*_files
 	@echo Created $@
 	@$(OPEN) $@
 endif
 
-$(PDF_TARGET)%.tex:	$(RENDERED_NOTEBOOKS)/%.ipynb $(BIB) $(PUBLISH_PLUGINS) $(ADD_METADATA)
+# Keep the .tex files
+.PRECIOUS: $(PDF_TARGET)%.tex
+
+POST_TEX = utils/post_tex
+
+$(PDF_TARGET)%.tex:	$(RENDERED_NOTEBOOKS)/%.ipynb $(BIB) $(PUBLISH_PLUGINS) $(ADD_METADATA) $(POST_TEX)
 	$(eval TMPDIR := $(shell mktemp -d))
 	$(PYTHON) $(ADD_METADATA) --titlepage $< > $(TMPDIR)/$(notdir $<)
 	cp -pr $(NOTEBOOKS)/PICS fuzzingbook.* $(TMPDIR)
 	$(CONVERT_TO_TEX) $(TMPDIR)/$(notdir $<)
+	$(POST_TEX) $@ > $@~ && mv $@~ $@
 	@-$(RM) -fr $(TMPDIR)
 	@cd $(PDF_TARGET) && $(RM) $*.nbpub.log
 
@@ -488,7 +496,7 @@ POST_HTML_OPTIONS = $(BETA_FLAG) \
 	--ready-chapters="$(READY_SOURCES)" \
 	--todo-chapters="$(TODO_SOURCES)" \
 	--new-chapters="$(NEW_SOURCES)" \
-	
+
 HTML_DEPS = $(BIB) $(PUBLISH_PLUGINS) utils/post_html.py $(CHAPTERS_MAKEFILE)
 
 
@@ -539,10 +547,11 @@ $(HTML_TARGET)%.html: $(FULL_NOTEBOOKS)/%.ipynb $(HTML_DEPS)
 	@-test -L $(HTML_TARGET)PICS || ln -s ../$(NOTEBOOKS)/PICS $(HTML_TARGET)
 	@$(OPEN) $@
 
-$(SLIDES_TARGET)%.slides.html: $(FULL_NOTEBOOKS)/%.ipynb $(BIB)
+$(SLIDES_TARGET)%.slides.html: $(FULL_NOTEBOOKS)/%.ipynb $(BIB) $(NBSHORTEN)
 	@test -d $(SLIDES_TARGET) || $(MKDIR) $(SLIDES_TARGET)
 	$(eval TMPDIR := $(shell mktemp -d))
 	sed 's/\.ipynb)/\.slides\.html)/g' $< > $(TMPDIR)/$(notdir $<)
+	$(PYTHON) $(NBSHORTEN) --skip-slides --in-place $(TMPDIR)/$(notdir $<)
 	$(CONVERT_TO_SLIDES) $(TMPDIR)/$(notdir $<)
 	@cd $(SLIDES_TARGET) && $(RM) $*.nbpub.log $*_files/$(BIB)
 	@-test -L $(HTML_TARGET)PICS || ln -s ../$(NOTEBOOKS)/PICS $(HTML_TARGET)
@@ -632,6 +641,7 @@ $(PDF_TARGET)$(BOOK).tex: $(RENDERS) $(BIB) $(PUBLISH_PLUGINS) $(CHAPTERS_MAKEFI
 	done
 	ln -s ../$(BIB) $(BOOK)
 	$(NBPUBLISH) -f latex_ipypublish_book --outpath $(PDF_TARGET) $(BOOK)
+	$(POST_TEX) $@ > $@~ && mv $@~ $@
 	$(RM) -r $(BOOK)
 	cd $(PDF_TARGET) && $(RM) $(BOOK).nbpub.log
 	@echo Created $@
@@ -665,6 +675,7 @@ $(PDF_TARGET)$(BOOK).tex: $(RENDERS) $(BIB) $(PUBLISH_PLUGINS) $(CHAPTERS_MAKEFI
 	done
 	cd book; $(BOOKBOOK_LATEX)
 	mv book/combined.tex $@
+	$(POST_TEX) $@ > $@~ && mv $@~ $@
 	$(RM) -r book
 	@echo Created $@
 
