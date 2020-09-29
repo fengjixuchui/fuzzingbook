@@ -12,10 +12,10 @@ SOURCE_FILES = \
 	$(EXTRAS)
 
 # The bibliography file
-BIB = $(PROJECT).bib
+BIB = fuzzingbook.bib
 
 # The utilities folder
-UTILS = $(PROJECT)_utils
+UTILS = bookutils
 
 # The utilities in $(UTILS)
 UTILITY_FILES = \
@@ -309,7 +309,7 @@ html:	ipypublish-chapters $(HTMLS)
 pdf:	ipypublish-chapters $(PDFS)
 nbpdf:	ipypublish-chapters $(NBPDFS)
 python code:	$(PYS)
-slides:	$(SLIDES) $(REVEAL_JS)
+slides:	$(REVEAL_JS) $(SLIDES) 
 word doc docx: $(WORDS)
 md markdown: $(MARKDOWNS)
 epub: $(EPUBS)
@@ -441,7 +441,7 @@ POST_TEX = utils/post_tex
 $(PDF_TARGET)%.tex:	$(RENDERED_NOTEBOOKS)/%.ipynb $(BIB) $(PUBLISH_PLUGINS) $(ADD_METADATA) $(POST_TEX)
 	$(eval TMPDIR := $(shell mktemp -d))
 	$(PYTHON) $(ADD_METADATA) --titlepage $< > $(TMPDIR)/$(notdir $<)
-	cp -pr $(NOTEBOOKS)/PICS $(PROJECT).* $(TMPDIR)
+	cp -pr $(NOTEBOOKS)/PICS $(BIB) $(TMPDIR)
 	$(CONVERT_TO_TEX) $(TMPDIR)/$(notdir $<)
 	$(POST_TEX) $@ > $@~ && mv $@~ $@
 	@-$(RM) -fr $(TMPDIR)
@@ -538,9 +538,11 @@ endif
 
 
 # Reconstructing the reveal.js dir
-$(REVEAL_JS):
-	git submodule update --init
-
+.PHONY: reveal.js
+$(REVEAL_JS) reveal.js: .FORCE
+	@-test -d "$@" || (cd $(SLIDES_TARGET); \
+		git submodule add https://github.com/hakimel/reveal.js.git)
+	@git submodule update --remote
 
 $(CODE_TARGET)setup.py: $(CODE_TARGET)setup.py.in
 	cat $< > $@
@@ -899,8 +901,10 @@ $(DOCS_TARGET)dist/$(PROJECT)-notebooks.zip: $(FULLS) $(CHAPTERS_MAKEFILE) \
 .PHONY: publish-slides publish-slides-setup
 publish-slides: slides publish-slides-setup \
 	$(PUBLIC_CHAPTERS:%.ipynb=$(DOCS_TARGET)slides/%.slides.html) \
-	$(APPENDICES:%.ipynb=$(DOCS_TARGET)slides/%.slides.html)
-	
+	$(APPENDICES:%.ipynb=$(DOCS_TARGET)slides/%.slides.html) \
+	$(DOCS_TARGET)slides/reveal.js
+	@-rm -fr $(DOCS_TARGET)slides/.git
+
 publish-slides-setup:
 	@test -d $(DOCS_TARGET) || $(MKDIR) $(DOCS_TARGET)
 	@test -d $(DOCS_TARGET)slides || $(MKDIR) $(DOCS_TARGET)slides
@@ -913,12 +917,12 @@ $(DOCS_TARGET)slides/%: $(SLIDES_TARGET)%
 .PHONY: publish-notebooks publish-notebooks-setup
 publish-notebooks: full-notebooks publish-notebooks-setup \
 	$(DOCS_TARGET)notebooks/custom.css \
-	$(DOCS_TARGET)notebooks/$(PROJECT).bib \
+	$(DOCS_TARGET)notebooks/$(BIB) \
 	$(DOCS_TARGET)notebooks/LICENSE.md \
 	$(DOCS_TARGET)notebooks/README.md \
 	$(DOCS:%=$(DOCS_TARGET)notebooks/%.ipynb) \
 	$(UTILITY_FILES:%=$(DOCS_TARGET)notebooks/$(UTILS)/%)
-	
+
 publish-notebooks-setup:
 	@test -d $(DOCS_TARGET) \
 		|| $(MKDIR) $(DOCS_TARGET)

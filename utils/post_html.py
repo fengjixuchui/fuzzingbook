@@ -46,7 +46,7 @@ if project == "fuzzingbook":
 elif project == "debuggingbook":
     booktitle = "The Debugging Book"
     authors = "Andreas Zeller"
-    twitter = "@DebugBook"
+    twitter = "@Debugging_Book"
 else:
     booktitle = "The Unknown Book"
     authors = "Nobody"
@@ -179,7 +179,7 @@ The content of this project is licensed under the
 The source code that is part of the content, as well as the source code used to format and display that content is licensed under the <a href="https://github.com/uds-se/__PROJECT__/blob/master/LICENSE.md#mit-license">MIT License</a>.
 <a href="__GITHUB_HTML__commits/master/notebooks/__CHAPTER__.ipynb" target=_blank)>Last change: __DATE__</a> &bull; 
 <a href="#citation" id="cite" onclick="revealCitation()">Cite</a> &bull;
-<a href="https://www.uni-saarland.de/en/footer/dialogue/legal-notice.html" target=_blank>Imprint</a>
+<a href="https://cispa.de/en/impressum" target=_blank>Imprint</a>
 </p>
 
 <iframe src="http://fuzzingbook.cispa.saarland/rVBkxhK1wuOrGfGe1HZL/__CHAPTER_TITLE__" style="width:0;height:0;border:0; border:none;"></iframe>
@@ -320,9 +320,8 @@ def add_links_to_imports(contents):
     imports = re.findall(RE_IMPORT, contents)
     for module in imports:
         link = None
-        if (module.startswith(project + "_utils") or  
-             module.startswith("bookutils")):
-            link = "https://github.com/uds-se/fuzzingbook/tree/master/notebooks/fuzzingbook_utils"
+        if module.startswith("bookutils"):
+            link = "https://github.com/uds-se/fuzzingbook/tree/master/notebooks/bookutils"
         elif module == "requests":
             link = "http://docs.python-requests.org/en/master/"
         elif module.startswith("IPython"):
