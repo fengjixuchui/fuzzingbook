@@ -28,6 +28,9 @@ parser.add_argument("--home", help="omit links to notebook, code, and slides", a
 parser.add_argument("--include-ready", help="include ready chapters", action='store_true')
 parser.add_argument("--include-todo", help="include work-in-progress chapters", action='store_true')
 parser.add_argument("--project", help="project name", default="fuzzingbook")
+parser.add_argument("--title", help="book title", default="The Fuzzing Book")
+parser.add_argument("--authors", help="list of authors", default="A. Zeller et al.")
+parser.add_argument("--twitter", help="twitter handle", default="@FuzzingBook")
 parser.add_argument("--menu-prefix", help="prefix to html files in menu")
 parser.add_argument("--public-chapters", help="List of public chapters")
 parser.add_argument("--ready-chapters", help="List of ready chapters")
@@ -38,19 +41,9 @@ args = parser.parse_args()
 
 # Some fixed strings    
 project = args.project
-
-if project == "fuzzingbook":
-    booktitle = "The Fuzzing Book"
-    authors = "Andreas Zeller, Rahul Gopinath, Marcel Böhme, Gordon Fraser, and Christian Holler"
-    twitter = "@FuzzingBook"
-elif project == "debuggingbook":
-    booktitle = "The Debugging Book"
-    authors = "Andreas Zeller"
-    twitter = "@Debugging_Book"
-else:
-    booktitle = "The Unknown Book"
-    authors = "Nobody"
-    twitter = "@Nobody"
+booktitle = args.title
+authors = args.authors
+twitter = args.twitter
 
 site_html = f"https://www.{project}.org/"
 github_html = f"https://github.com/uds-se/{project}/"
@@ -347,6 +340,44 @@ def add_links_to_imports(contents):
                 + module + r"</a>" + r'</span>')
 
     return contents
+
+# Remove cells that only contain a quiz() or a display() call. Keep the output.
+RE_DISPLAY = re.compile(r'''
+<div class="input_code">
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span>(<span class="n">(quiz|display)</span>|<span class="c1">#\s*[iI]gnore[^<]*</span>).*?
+</div>
+</div></div>
+</div>
+</div>
+''', re.DOTALL)
+
+def remove_ignored_code(text):
+    return RE_DISPLAY.sub('', text)
+
+assert remove_ignored_code('''
+<div class="input_code">
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">quiz</span><span class="p">(</span><span class="s2">&quot;From the difference between success and failure, we can already devise some observations about what&#39;s wrong with the output.  Which of these can we turn into general hypotheses?&quot;</span><span class="p">,</span>
+    <span class="p">[</span><span class="s2">&quot;Double quotes are stripped from the tagged input.&quot;</span><span class="p">,</span> 
+     <span class="s2">&quot;Tags in double quotes are not stripped.&quot;</span><span class="p">,</span>
+     <span class="s2">&quot;The tag &#39;&amp;lt;b&amp;gt;&#39; is always stripped from the input.&quot;</span><span class="p">,</span>
+     <span class="s2">&quot;Four-letter words are stripped.&quot;</span><span class="p">],</span> <span class="p">[</span><span class="mi">298</span> <span class="o">%</span> <span class="mi">33</span><span class="p">,</span> <span class="mi">1234</span> <span class="o">%</span> <span class="mi">616</span><span class="p">])</span>
+</pre></div>
+
+</div>
+</div></div>
+</div>
+</div>
+''') == ''
 
 
 # Sharing
@@ -757,7 +788,10 @@ chapter_contents = chapter_contents \
     .replace("__SHARE_MAIL__", share_mail) \
     .replace("__DATE__", notebook_modification_datetime) \
     .replace("__YEAR__", notebook_modification_year) \
-    .replace("__BIBTEX_KEY__", project + notebook_modification_year) \
+    .replace("__BIBTEX_KEY__", project + notebook_modification_year)
+
+# Remove code cells that only display graphics
+chapter_contents = remove_ignored_code(chapter_contents)
 
 # Add links to imports
 chapter_contents = add_links_to_imports(chapter_contents)
