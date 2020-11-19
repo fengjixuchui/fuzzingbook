@@ -80,10 +80,14 @@ binder.log
 # Caches
 .mypy_cache/
 
+# .bib timestamps
+.*.bib.*
+
 # Zeller's files
 Security Testing
-Debugging Course
 papers
+course
+udacity
 videos
 
 *.command
